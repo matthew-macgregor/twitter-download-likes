@@ -1,0 +1,27 @@
+{
+	"name": "Codespaces Rust Starter",
+	"extensions": [
+		"cschleiden.vscode-github-actions",
+		"ms-vsliveshare.vsliveshare",
+		"rust-lang.rust-analyzer",
+		"serayuzgur.crates",
+		"vadimcn.vscode-lldb"
+	],
+	"dockerFile": "Dockerfile",
+	"settings": {
+		"editor.formatOnSave": true,
+		"files.exclude": {
+			"**/CODE_OF_CONDUCT.md": true,
+			"**/LICENSE": true
+		},
+		"terminal.integrated.profiles.linux": {
+			"zsh": {
+				"path": "/usr/bin/zsh",
+				"args": [
+					"-l"
+				]
+			}
+		},
+		"terminal.integrated.defaultProfile.linux": "zsh"
+	}
+}
