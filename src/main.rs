@@ -1,7 +1,8 @@
 mod json_types;
 mod twitter;
 
-use crate::json_types::{TwitLikeResponse, TwitUserDatum, TwitUserResponse};
+use crate::json_types::{JsonCache, TwitLikeResponse, TwitUserDatum, TwitUserResponse};
+use json_types::UserIdLookup;
 use std::collections::HashMap;
 use std::env;
 use twitter as tw;
@@ -10,6 +11,7 @@ use twitter as tw;
 async fn main() {
     let token = env::var("BEARER_TOKEN").expect("BEARER_TOKEN environment variable is missing.");
     let username: String = env::var("USERNAME").expect("USERNAME environment variable is missing.");
+
     let client = reqwest::Client::new();
 
     let url_users_by = match tw::create_url_users_by_username(&[username]) {
@@ -29,14 +31,22 @@ async fn main() {
         tw::send_request::<TwitLikeResponse>(&token, &client, &url_users_liked).await;
     // println!("{:?}", like_response);
 
-    let mut user_id_map: HashMap<String, Option<TwitUserDatum>> = HashMap::new();
+    let mut user_id_lkup = UserIdLookup::new();
     for data in like_response.data.iter() {
         println!("{:?}", data);
         // Gather all of the user_ids for the liked tweets to batch download
-        if !user_id_map.contains_key(&data.author_id) {
-            user_id_map.insert(data.author_id.clone(), None);
+        if !user_id_lkup.has(&data.author_id) {
+            user_id_lkup.add(data.author_id.clone(), None);
         }
     }
+
+    user_id_lkup.cache(
+        env::current_dir()
+            .unwrap()
+            .join("user_id_lkup.json")
+            .to_str()
+            .unwrap(),
+    );
 
     println!("{:?}", like_response.meta);
     let meta = match &like_response.meta {
@@ -45,7 +55,7 @@ async fn main() {
     };
 
     // want to use array_chunks here but will wait for it to stabilize
-    let user_ids_all: Vec<String> = user_id_map.keys().cloned().collect();
+    let user_ids_all = user_id_lkup.keys_to_vec();
     // let user_ids_batch = &user_ids_all[0..100];
 
     let url_users_by_ids = match tw::create_url_users_by_ids(&user_ids_all[0..user_ids_all.len()]) {
