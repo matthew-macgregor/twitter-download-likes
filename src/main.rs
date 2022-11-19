@@ -1,10 +1,10 @@
 mod json_types;
 mod twitter;
 
-use crate::json_types::{JsonCache, TwitLikeResponse, TwitUserDatum, TwitUserResponse};
+use crate::json_types::{TwitLikeResponse, TwitUserResponse};
 use json_types::UserIdLookup;
-use std::collections::HashMap;
-use std::env;
+
+use std::{env, fs};
 use twitter as tw;
 
 #[tokio::main]
@@ -29,24 +29,25 @@ async fn main() {
 
     let like_response =
         tw::send_request::<TwitLikeResponse>(&token, &client, &url_users_liked).await;
-    // println!("{:?}", like_response);
 
+    let cache_filename = "user_id_lkup.json";
+
+    let cache_directory = env::current_dir().unwrap().join(".cache");
+
+    fs::create_dir_all(&cache_directory).unwrap();
+    let user_id_lkup_cache_path = cache_directory.join(cache_filename);
     let mut user_id_lkup = UserIdLookup::new();
+    if let Err(err) = user_id_lkup.uncache(&user_id_lkup_cache_path) {
+        println!("Unable to load user ids from cache: {:?}", err)
+    }
+
     for data in like_response.data.iter() {
         println!("{:?}", data);
         // Gather all of the user_ids for the liked tweets to batch download
         if !user_id_lkup.has(&data.author_id) {
-            user_id_lkup.add(data.author_id.clone(), None);
+            user_id_lkup.insert(data.author_id.clone(), None);
         }
     }
-
-    user_id_lkup.cache(
-        env::current_dir()
-            .unwrap()
-            .join("user_id_lkup.json")
-            .to_str()
-            .unwrap(),
-    );
 
     println!("{:?}", like_response.meta);
     let meta = match &like_response.meta {
@@ -67,4 +68,13 @@ async fn main() {
     let users_response =
         tw::send_request::<TwitUserResponse>(&token, &client, &url_users_by_ids).await;
     println!("{:?}", users_response);
+
+    for user in users_response.data {
+        user_id_lkup.insert(user.id.clone(), Some(user.clone()));
+    }
+
+    match user_id_lkup.cache(&user_id_lkup_cache_path) {
+        Err(error) => println!("Failed to cache users by id: {error}"),
+        _ => (),
+    };
 }

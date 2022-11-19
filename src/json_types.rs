@@ -2,13 +2,14 @@ use serde::{de, Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
+use std::path::Path;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitUserResponse {
     pub data: Vec<TwitUserDatum>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TwitUserDatum {
     pub created_at: Option<String>,
     pub id: String,
@@ -66,7 +67,7 @@ impl UserIdLookup {
         self.users_by_id.contains_key(key)
     }
 
-    pub fn add(&mut self, key: String, value: Option<TwitUserDatum>) -> &Self {
+    pub fn insert(&mut self, key: String, value: Option<TwitUserDatum>) -> &Self {
         self.users_by_id.insert(key, value);
         self
     }
@@ -75,12 +76,12 @@ impl UserIdLookup {
         self.users_by_id.keys().cloned().collect()
     }
 
-    pub fn cache(&self, path: &str) -> Result<&Self, Box<dyn Error>> {
+    pub fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
         self.write(path, &self.users_by_id)?;
         Ok(self)
     }
 
-    pub fn uncache(&mut self, path: &str) -> Result<&Self, Box<dyn Error>> {
+    pub fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>> {
         self.users_by_id = self.read(path)?;
         Ok(self)
     }
@@ -90,13 +91,17 @@ pub trait JsonCache<T>
 where
     T: Serialize + de::DeserializeOwned,
 {
-    fn write(&self, path: &str, obj: &T) -> Result<(), Box<dyn Error>> {
-        let json_str = serde_json::to_string(obj)?;
-        fs::write(path, json_str).expect(format!("Failed to write file {}", path).as_str());
+    fn write(&self, path: &Path, obj: &T) -> Result<(), Box<dyn Error>> {
+        let json_str = serde_json::to_string_pretty(obj)?;
+        let path_str = match path.to_str() {
+            Some(s) => s,
+            None => "unknown path",
+        };
+        fs::write(path, json_str).expect(&format!("Failed to write file {}", path_str));
         Ok(())
     }
 
-    fn read(&self, path: &str) -> Result<T, Box<dyn Error>> {
+    fn read(&self, path: &Path) -> Result<T, Box<dyn Error>> {
         let json_str = fs::read_to_string(path)?;
         let result = serde_json::from_str::<T>(&json_str)?;
         Ok(result)
