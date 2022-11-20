@@ -28,7 +28,7 @@ pub enum TwitUrlFormatErrors {
 }
 
 // https://github.com/twitterdev/Twitter-API-v2-sample-code/blob/main/Likes-Lookup/liked_tweets.py
-pub fn create_url_users_liked_tweets(user_id: &str) -> String {
+pub fn create_url_users_liked_tweets(user_id: &str, next_token: Option<String>) -> String {
     // tweet_fields:
     // attachments, author_id, context_annotations,
     // conversation_id, created_at, entities, geo, id,
@@ -40,9 +40,12 @@ pub fn create_url_users_liked_tweets(user_id: &str) -> String {
     // -H "Authorization: Bearer $TOKEN" \
     // "https://api.twitter.com/2/users/1446894253/liked_tweets?max_results=100&pagination_token=7140dibdnow9c7btw481sf1t9hxmmcxmseeltcdseos3c&expansions=author_id&user.fields=name&tweet.fields=attachments%2Cauthor_id%2Centities"
     let tweet_fields = "tweet.fields=lang,author_id,attachments,entities";
+    let pagination_token = match next_token {
+        Some(next_token) => format!("&pagination_token={next_token}"),
+        None => "".to_string(),
+    };
     format!(
-        "https://api.twitter.com/2/users/{}/liked_tweets?{}&max_results=100",
-        user_id, tweet_fields,
+        "https://api.twitter.com/2/users/{user_id}/liked_tweets?{tweet_fields}{pagination_token}&max_results=100"
     )
 }
 

@@ -1,4 +1,7 @@
-use crate::json_types::UserIdLookup;
+use serde::{de, Serialize};
+
+use crate::json_types::{FsCacheable, UserIdLookup};
+use std::error::Error;
 use std::{env, fs};
 
 const CACHE_DIRNAME: &str = ".cache";
@@ -9,7 +12,7 @@ pub fn load_user_lookup() -> UserIdLookup {
     let cache_directory = env::current_dir().unwrap().join(CACHE_DIRNAME);
     fs::create_dir_all(&cache_directory).unwrap();
     let mut user_id_lkup = UserIdLookup::new();
-    let user_id_lkup_cache_path = cache_directory.join(&user_id_lkup.cache_filename);
+    let user_id_lkup_cache_path = cache_directory.join(user_id_lkup.cache_filename().unwrap());
     if let Err(err) = user_id_lkup.uncache(&user_id_lkup_cache_path) {
         // It's not fatal. Cache file may not exist.
         println!("Unable to load user ids from cache: {:?}", err);
@@ -20,13 +23,20 @@ pub fn load_user_lookup() -> UserIdLookup {
     user_id_lkup
 }
 
-pub fn write_user_lookup(user_id_lkup: &UserIdLookup) {
+pub fn write_cache<T>(cacheable: &T) -> Result<(), Box<dyn Error>>
+where
+    T: FsCacheable,
+{
     let cache_directory = env::current_dir().unwrap().join(CACHE_DIRNAME);
-    fs::create_dir_all(&cache_directory).unwrap();
-    let user_id_lkup_cache_path = cache_directory.join(&user_id_lkup.cache_filename);
+    fs::create_dir_all(&cache_directory)?;
+    if let Some(cache_filename) = cacheable.cache_filename() {
+        let cache_path = cache_directory.join(cache_filename);
+        if let Err(error) = cacheable.cache(&cache_path) {
+            println!("Failed to cache users by id: {error}");
+        }
+    } else {
+        println!("Cache filename is not set, nothing to cache.");
+    }
 
-    match user_id_lkup.cache(&user_id_lkup_cache_path) {
-        Err(error) => println!("Failed to cache users by id: {error}"),
-        _ => (),
-    };
+    Ok(())
 }

@@ -2,7 +2,7 @@ use serde::{de, Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitUserResponse {
@@ -22,6 +22,34 @@ pub struct TwitUserDatum {
 pub struct TwitLikeResponse {
     pub data: Vec<TwitLikeDatum>,
     pub meta: Option<TwitLikeMeta>,
+    cache_filename: Option<String>,
+}
+
+impl TwitLikeResponse {
+    pub fn generate_cache_filename(&mut self) {
+        if let Some(meta) = &self.meta {
+            if let Some(next_token) = &meta.next_token {
+                self.cache_filename = Some(format!("{}.json", next_token.clone()));
+            }
+        }
+    }
+}
+
+impl JsonCache<TwitLikeResponse> for TwitLikeResponse {}
+impl FsCacheable for TwitLikeResponse {
+    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
+        self.write(path, &self)?;
+        Ok(self)
+    }
+
+    fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>> {
+        *self = self.read(path)?;
+        Ok(self)
+    }
+
+    fn cache_filename(&self) -> Option<&String> {
+        self.cache_filename.as_ref()
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -54,14 +82,14 @@ pub struct TwitLikeUrl {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
     pub users_by_id: HashMap<String, Option<TwitUserDatum>>,
-    pub cache_filename: String,
+    cache_filename: Option<String>,
 }
 
 impl UserIdLookup {
     pub fn new() -> UserIdLookup {
         UserIdLookup {
             users_by_id: HashMap::new(),
-            cache_filename: "user_id_lookup.json".to_string()
+            cache_filename: Some("user_id_lookup.json".to_string()),
         }
     }
 
@@ -77,16 +105,28 @@ impl UserIdLookup {
     pub fn keys_to_vec(&self) -> Vec<String> {
         self.users_by_id.keys().cloned().collect()
     }
+}
 
-    pub fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
+impl FsCacheable for UserIdLookup {
+    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
         self.write(path, &self.users_by_id)?;
         Ok(self)
     }
 
-    pub fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>> {
+    fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>> {
         self.users_by_id = self.read(path)?;
         Ok(self)
     }
+
+    fn cache_filename(&self) -> Option<&String> {
+        self.cache_filename.as_ref()
+    }
+}
+
+pub trait FsCacheable {
+    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>>;
+    fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>>;
+    fn cache_filename(&self) -> Option<&String>;
 }
 
 pub trait JsonCache<T>
