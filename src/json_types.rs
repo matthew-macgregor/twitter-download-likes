@@ -54,12 +54,14 @@ pub struct TwitLikeUrl {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
     pub users_by_id: HashMap<String, Option<TwitUserDatum>>,
+    pub cache_filename: String,
 }
 
 impl UserIdLookup {
     pub fn new() -> UserIdLookup {
         UserIdLookup {
             users_by_id: HashMap::new(),
+            cache_filename: "user_id_lookup.json".to_string()
         }
     }
 

@@ -13,17 +13,18 @@ where
         .await
         .unwrap();
 
-    println!("{:?}", resp);
+    // println!("{:?}", resp);
     let twit_data: T = match resp.status() {
         reqwest::StatusCode::OK => resp.json::<T>().await.unwrap(),
         _ => panic!("Bad response: {:?}", resp.text().await.unwrap()),
     };
-    println!("{:?}", twit_data);
+    // println!("{:?}", twit_data);
     twit_data
 }
 
 pub enum TwitUrlFormatErrors {
     ExceedsLimit(String),
+    NotAtMinimum(String),
 }
 
 // https://github.com/twitterdev/Twitter-API-v2-sample-code/blob/main/Likes-Lookup/liked_tweets.py
@@ -57,6 +58,10 @@ pub fn create_url_users_by_username(usernames: &[String]) -> Result<String, Twit
         return Err(TwitUrlFormatErrors::ExceedsLimit(
             "Number of usernames is limited to 100".to_owned(),
         ));
+    } else if usernames.len() < 1 {
+        return Err(TwitUrlFormatErrors::NotAtMinimum(
+            "At least 1 username is required".to_owned(),
+        ));
     }
 
     let usernames = usernames.join(",");
@@ -74,6 +79,10 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     if user_ids.len() > 100 {
         return Err(TwitUrlFormatErrors::ExceedsLimit(
             "Number of user_ids is limited to 100".to_owned(),
+        ));
+    } else if user_ids.len() < 1 {
+        return Err(TwitUrlFormatErrors::NotAtMinimum(
+            "At least 1 username is required".to_owned(),
         ));
     }
     let user_ids = user_ids.join(",");
