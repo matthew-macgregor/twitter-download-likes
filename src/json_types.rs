@@ -4,6 +4,8 @@ use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::cache::get_cacheable_file_path;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitUserResponse {
     pub data: Vec<TwitUserDatum>,
@@ -20,18 +22,28 @@ pub struct TwitUserDatum {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeResponse {
+    // TODO: separate object and JSON repr
+    pub id: Option<String>,
+    pub index: Option<u64>,
     pub data: Vec<TwitLikeDatum>,
     pub meta: Option<TwitLikeMeta>,
-    cache_filename: Option<String>,
 }
 
 impl TwitLikeResponse {
-    pub fn generate_cache_filename(&mut self) {
+    pub fn has_next_token(&self) -> bool {
+        match &self.meta {
+            None => false,
+            Some(meta) => matches!(&meta.next_token, Some(_)),
+        }
+    }
+
+    pub fn next_token(&self) -> Option<String> {
         if let Some(meta) = &self.meta {
             if let Some(next_token) = &meta.next_token {
-                self.cache_filename = Some(format!("{}.json", next_token.clone()));
+                return Some(next_token.clone());
             }
         }
+        None
     }
 }
 
@@ -47,8 +59,12 @@ impl FsCacheable for TwitLikeResponse {
         Ok(self)
     }
 
-    fn cache_filename(&self) -> Option<&String> {
-        self.cache_filename.as_ref()
+    fn cache_filename(&self) -> String {
+        let idx = self.index.unwrap_or_default();
+        match &self.id {
+            Some(tkn) => format!("liked-tweets-{}-{tkn}.json", idx),
+            None => format!("liked-tweets-{}-head.json", idx).to_string(),
+        }
     }
 }
 
@@ -82,14 +98,12 @@ pub struct TwitLikeUrl {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
     pub users_by_id: HashMap<String, Option<TwitUserDatum>>,
-    cache_filename: Option<String>,
 }
 
 impl UserIdLookup {
     pub fn new() -> UserIdLookup {
         UserIdLookup {
             users_by_id: HashMap::new(),
-            cache_filename: Some("user_id_lookup.json".to_string()),
         }
     }
 
@@ -100,10 +114,6 @@ impl UserIdLookup {
     pub fn insert(&mut self, key: String, value: Option<TwitUserDatum>) -> &Self {
         self.users_by_id.insert(key, value);
         self
-    }
-
-    pub fn keys_to_vec(&self) -> Vec<String> {
-        self.users_by_id.keys().cloned().collect()
     }
 }
 
@@ -118,15 +128,31 @@ impl FsCacheable for UserIdLookup {
         Ok(self)
     }
 
-    fn cache_filename(&self) -> Option<&String> {
-        self.cache_filename.as_ref()
+    fn cache_filename(&self) -> String {
+        "user_id_lookup.json".to_string()
     }
 }
 
 pub trait FsCacheable {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>>;
     fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>>;
-    fn cache_filename(&self) -> Option<&String>;
+    fn cache_filename(&self) -> String;
+    fn cache_fullpath(&self) -> Option<PathBuf>
+    where
+        Self: Sized,
+    {
+        match get_cacheable_file_path(self) {
+            Ok(fs_path) => Some(fs_path.file_path),
+            Err(_) => None,
+        }
+    }
+    fn cache_exists(&self) -> bool
+    where
+        Self: Sized,
+    {
+        let Some(fullpath) = self.cache_fullpath() else { return false };
+        Path::exists(&fullpath)
+    }
 }
 
 pub trait JsonCache<T>

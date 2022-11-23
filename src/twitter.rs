@@ -1,5 +1,10 @@
+use crate::{
+    cache,
+    json_types::{FsCacheable, TwitLikeResponse, TwitUserResponse},
+};
 use reqwest::header::{AUTHORIZATION, USER_AGENT};
 use serde::de;
+use std::error::Error;
 
 pub async fn send_request<T>(bearer_token: &str, client: &reqwest::Client, url: &str) -> T
 where
@@ -13,12 +18,12 @@ where
         .await
         .unwrap();
 
-    // println!("{:?}", resp);
     let twit_data: T = match resp.status() {
         reqwest::StatusCode::OK => resp.json::<T>().await.unwrap(),
         _ => panic!("Bad response: {:?}", resp.text().await.unwrap()),
     };
-    // println!("{:?}", twit_data);
+
+    println!("{:?}", twit_data);
     twit_data
 }
 
@@ -28,7 +33,7 @@ pub enum TwitUrlFormatErrors {
 }
 
 // https://github.com/twitterdev/Twitter-API-v2-sample-code/blob/main/Likes-Lookup/liked_tweets.py
-pub fn create_url_users_liked_tweets(user_id: &str, next_token: Option<String>) -> String {
+pub fn create_url_users_liked_tweets(user_id: &str, next_token: &Option<String>) -> String {
     // tweet_fields:
     // attachments, author_id, context_annotations,
     // conversation_id, created_at, entities, geo, id,
@@ -49,7 +54,7 @@ pub fn create_url_users_liked_tweets(user_id: &str, next_token: Option<String>) 
     )
 }
 
-pub fn create_url_users_by_username(usernames: &[String]) -> Result<String, TwitUrlFormatErrors> {
+pub fn create_url_users_by_username(usernames: &[&str]) -> Result<String, TwitUrlFormatErrors> {
     // usernames = "usernames=TwitterDev,TwitterAPI"
     // user_fields = "user.fields=description,created_at"
     // # User fields are adjustable, options include:
@@ -93,4 +98,94 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     Ok(format!(
         "https://api.twitter.com/2/users?ids={user_ids}&user.fields=id,profile_image_url,url,username"
     ))
+}
+
+pub async fn export_twitter_likes_for_username(
+    username: &str,
+    token: &str,
+) -> Result<(), Box<dyn Error>> {
+    let client = reqwest::Client::new();
+
+    // Look up the twitter user id by user name / handle
+    let url_users_by = match create_url_users_by_username(&[username]) {
+        Err(TwitUrlFormatErrors::ExceedsLimit(msg)) => panic!("{msg}"),
+        Err(TwitUrlFormatErrors::NotAtMinimum(msg)) => panic!("{msg}"),
+        Ok(url) => url,
+    };
+    let user_response = send_request::<TwitUserResponse>(&token, &client, &url_users_by).await;
+
+    let user = &user_response.data[0];
+    let mut user_id_lkup = cache::load_user_lookup();
+    let mut next_token: Option<String> = None;
+    let mut count: u64 = 0;
+
+    loop {
+        println!("Fetching the next batch of tweets...");
+        let url_users_liked = create_url_users_liked_tweets(&user.id, &next_token);
+        // TODO: Check here if the cache exists, skip loop if so
+
+        let mut like_response =
+            send_request::<TwitLikeResponse>(&token, &client, &url_users_liked).await;
+
+        if let Some(tkn) = next_token {
+            like_response.id = Some(tkn);
+            like_response.index = Some(count);
+        }
+
+        // Collect any of the users that we haven't cached previously
+        for data in like_response.data.iter() {
+            // Gather all of the user_ids for the liked tweets to batch download
+            if !user_id_lkup.has(&data.author_id) {
+                user_id_lkup.insert(data.author_id.clone(), None);
+            }
+        }
+
+        let mut missing_users: Vec<String> = Vec::new();
+        for (key, value) in &user_id_lkup.users_by_id {
+            if let None = value {
+                missing_users.push(key.clone());
+            }
+        }
+
+        if missing_users.len() > 0 {
+            match create_url_users_by_ids(&missing_users) {
+                Err(TwitUrlFormatErrors::ExceedsLimit(msg)) => panic!("{msg}"),
+                Err(TwitUrlFormatErrors::NotAtMinimum(msg)) => {
+                    println!("No users to look up: {msg}");
+                }
+                Ok(url) => {
+                    println!("{:?}", url);
+                    let users_response =
+                        send_request::<TwitUserResponse>(&token, &client, &url).await;
+
+                    for user in users_response.data {
+                        user_id_lkup.insert(user.id.clone(), Some(user.clone()));
+                    }
+
+                    if let Err(err) = cache::write_cache(&user_id_lkup) {
+                        println!("Error writing cache: {err}");
+                    }
+                }
+            };
+        }
+
+        if like_response.cache_exists() {
+            println!("Cache exists for this batch of tweets, skipping...");
+        } else {
+            if let Err(error) = cache::write_cache(&like_response) {
+                panic!("{}", error);
+            }
+        }
+
+        if like_response.has_next_token() {
+            next_token = like_response.next_token();
+        } else {
+            println!("No pagination token. Finished.");
+            break;
+        }
+
+        count += 1;
+    }
+
+    Ok(())
 }
