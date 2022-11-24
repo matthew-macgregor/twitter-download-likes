@@ -1,3 +1,4 @@
+use chrono::{DateTime, NaiveDate};
 use serde::{de, Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
@@ -45,6 +46,20 @@ impl TwitLikeResponse {
         }
         None
     }
+
+    pub fn has_tweets_older_than(&self, not_before_date: &str) -> bool {
+        if self.data.len() == 0 {
+            return false;
+        }
+        // If the oldest element in the list (the last one) is older than the threshold date
+        let created_at = &self.data.last().unwrap().created_at; // TODO: unwrap
+        println!("Oldest tweet in batch: {created_at}");
+        let oldest_in_list = DateTime::parse_from_rfc3339(&created_at)
+            .unwrap()
+            .date_naive();
+        let threshold_date = NaiveDate::parse_from_str(not_before_date, "%Y-%m-%d").unwrap();
+        return oldest_in_list.lt(&threshold_date);
+    }
 }
 
 impl JsonCache<TwitLikeResponse> for TwitLikeResponse {}
@@ -81,6 +96,7 @@ pub struct TwitLikeDatum {
     pub author_id: String,
     pub text: String,
     pub entities: Option<TwitLikeEntities>,
+    pub created_at: String, // date (ISO 8601)
 }
 
 #[derive(Deserialize, Serialize, Debug)]

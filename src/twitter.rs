@@ -23,7 +23,7 @@ where
         _ => panic!("Bad response: {:?}", resp.text().await.unwrap()),
     };
 
-    println!("{:?}", twit_data);
+    // println!("{:?}", twit_data);
     twit_data
 }
 
@@ -44,7 +44,7 @@ pub fn create_url_users_liked_tweets(user_id: &str, next_token: &Option<String>)
     //     curl \
     // -H "Authorization: Bearer $TOKEN" \
     // "https://api.twitter.com/2/users/1446894253/liked_tweets?max_results=100&pagination_token=7140dibdnow9c7btw481sf1t9hxmmcxmseeltcdseos3c&expansions=author_id&user.fields=name&tweet.fields=attachments%2Cauthor_id%2Centities"
-    let tweet_fields = "tweet.fields=lang,author_id,attachments,entities";
+    let tweet_fields = "tweet.fields=created_at,lang,author_id,attachments,entities";
     let pagination_token = match next_token {
         Some(next_token) => format!("&pagination_token={next_token}"),
         None => "".to_string(),
@@ -103,6 +103,7 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
 pub async fn export_twitter_likes_for_username(
     username: &str,
     token: &str,
+    not_before_date: &Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     let client = reqwest::Client::new();
 
@@ -154,7 +155,7 @@ pub async fn export_twitter_likes_for_username(
                     println!("No users to look up: {msg}");
                 }
                 Ok(url) => {
-                    println!("{:?}", url);
+                    // println!("{:?}", url);
                     let users_response =
                         send_request::<TwitUserResponse>(&token, &client, &url).await;
 
@@ -182,6 +183,16 @@ pub async fn export_twitter_likes_for_username(
         } else {
             println!("No pagination token. Finished.");
             break;
+        }
+
+        if let Some(ref not_before_date) = not_before_date {
+            println!("Not before: {not_before_date}");
+            if like_response.has_tweets_older_than(&not_before_date) {
+                println!("Reached the end date: {not_before_date}");
+                break;
+            } else {
+                println!("Not before date not reached, continuing");
+            }
         }
 
         count += 1;
