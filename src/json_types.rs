@@ -62,24 +62,17 @@ impl TwitLikeResponse {
     }
 }
 
-impl JsonCache<TwitLikeResponse> for TwitLikeResponse {}
-impl FsCacheable for TwitLikeResponse {
+impl FsCacheable<&Self> for TwitLikeResponse {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        self.write(path, &self)?;
+        write::<&Self>(path, &self)?;
         Ok(self)
     }
+}
 
-    fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        *self = self.read(path)?;
-        Ok(self)
-    }
-
-    fn cache_filename(&self) -> String {
-        let idx = self.index.unwrap_or_default();
-        match &self.id {
-            Some(tkn) => format!("liked-tweets-{}-{tkn}.json", idx),
-            None => format!("liked-tweets-{}-head.json", idx).to_string(),
-        }
+impl FsLoadable<TwitLikeResponse> for TwitLikeResponse {
+    fn load(path: &Path) -> Result<TwitLikeResponse, Box<dyn Error>> {
+        let resp = read::<TwitLikeResponse>(path)?;
+        Ok(resp)
     }
 }
 
@@ -88,6 +81,8 @@ pub struct TwitLikeMeta {
     pub result_count: u32,
     pub next_token: Option<String>,
     pub previous_token: Option<String>,
+    pub user_id: Option<String>,
+    pub username: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -111,15 +106,27 @@ pub struct TwitLikeUrl {
     pub display_url: String,
 }
 
+type UsersByIdHashMap = HashMap<String, Option<TwitUserDatum>>;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
-    pub users_by_id: HashMap<String, Option<TwitUserDatum>>,
+    pub users_by_id: UsersByIdHashMap,
+    pub filename: String,
+}
+
+impl Default for UserIdLookup {
+    fn default() -> UserIdLookup {
+        UserIdLookup {
+            users_by_id: HashMap::new(),
+            filename: "user_id_lookup.json".to_string(),
+        }
+    }
 }
 
 impl UserIdLookup {
     pub fn new() -> UserIdLookup {
         UserIdLookup {
-            users_by_id: HashMap::new(),
+            ..Default::default()
         }
     }
 
@@ -131,65 +138,117 @@ impl UserIdLookup {
         self.users_by_id.insert(key, value);
         self
     }
-}
 
-impl FsCacheable for UserIdLookup {
-    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        self.write(path, &self.users_by_id)?;
-        Ok(self)
-    }
-
-    fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        self.users_by_id = self.read(path)?;
-        Ok(self)
-    }
-
-    fn cache_filename(&self) -> String {
-        "user_id_lookup.json".to_string()
-    }
-}
-
-pub trait FsCacheable {
-    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>>;
-    fn uncache(&mut self, path: &Path) -> Result<&Self, Box<dyn Error>>;
-    fn cache_filename(&self) -> String;
-    fn cache_fullpath(&self) -> Option<PathBuf>
-    where
-        Self: Sized,
-    {
-        match get_cacheable_file_path(self) {
+    pub fn fs_full_path(&self) -> Option<PathBuf> {
+        match get_cacheable_file_path(&self.filename) {
             Ok(fs_path) => Some(fs_path.file_path),
             Err(_) => None,
         }
     }
-    fn cache_exists(&self) -> bool
-    where
-        Self: Sized,
-    {
-        let Some(fullpath) = self.cache_fullpath() else { return false };
-        Path::exists(&fullpath)
+}
+
+impl FsCacheable<UsersByIdHashMap> for UserIdLookup {
+    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
+        write::<UsersByIdHashMap>(path, &self.users_by_id)?;
+        Ok(self)
     }
 }
 
-pub trait JsonCache<T>
-where
-    T: Serialize + de::DeserializeOwned,
-{
-    fn write(&self, path: &Path, obj: &T) -> Result<(), Box<dyn Error>> {
-        let json_str = serde_json::to_string_pretty(obj)?;
-        let path_str = match path.to_str() {
-            Some(s) => s,
-            None => "unknown path",
+impl FsLoadable<UserIdLookup> for UserIdLookup {
+    fn load(path: &Path) -> Result<UserIdLookup, Box<dyn Error>> {
+        let mut user_id_lookup = UserIdLookup {
+            ..Default::default()
         };
-        fs::write(path, json_str).expect(&format!("Failed to write file {}", path_str));
-        Ok(())
+        user_id_lookup.users_by_id = read::<UsersByIdHashMap>(path)?;
+        Ok(user_id_lookup)
     }
 
-    fn read(&self, path: &Path) -> Result<T, Box<dyn Error>> {
-        let json_str = fs::read_to_string(path)?;
-        let result = serde_json::from_str::<T>(&json_str)?;
-        Ok(result)
+    // fn cache_filename(&self) -> String {
+    //     "user_id_lookup.json".to_string()
+    // }
+
+    // fn cache_fullpath(&self) -> Option<PathBuf>
+    // where
+    //     Self: Sized,
+    // {
+    //     match get_cacheable_file_path(self) {
+    //         Ok(fs_path) => Some(fs_path.file_path),
+    //         Err(_) => None,
+    //     }
+    // }
+
+    // fn cache_exists(&self) -> bool
+    // where
+    //     Self: Sized,
+    // {
+    //     let Some(fullpath) = self.cache_fullpath() else { return false };
+    //     Path::exists(&fullpath)
+    // }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct LikedTweets {
+    pub username: Option<String>,
+    pub user_id: Option<String>,
+    pub tweets: Vec<TwitLikeDatum>,
+}
+
+impl FsCacheable<LikedTweets> for LikedTweets {
+    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
+        write::<Self>(path, &self)?;
+        Ok(self)
     }
 }
 
-impl JsonCache<HashMap<String, Option<TwitUserDatum>>> for UserIdLookup {}
+impl FsLoadable<LikedTweets> for LikedTweets {
+    fn load(path: &Path) -> Result<LikedTweets, Box<dyn Error>> {
+        read::<LikedTweets>(path)
+    }
+}
+
+pub trait FsCacheable<T> {
+    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>>;
+    // fn cache_filename(&self) -> String;
+    // fn cache_fullpath(&self) -> Option<PathBuf>
+    // where
+    //     Self: Sized,
+    // {
+    //     match get_cacheable_file_path(self) {
+    //         Ok(fs_path) => Some(fs_path.file_path),
+    //         Err(_) => None,
+    //     }
+    // }
+    // fn cache_exists(&self) -> bool
+    // where
+    //     Self: Sized,
+    // {
+    //     let Some(fullpath) = self.cache_fullpath() else { return false };
+    //     Path::exists(&fullpath)
+    // }
+}
+
+pub trait FsLoadable<T> {
+    fn load(path: &Path) -> Result<T, Box<dyn Error>>;
+}
+
+fn write<T>(path: &Path, obj: &T) -> Result<(), Box<dyn Error>>
+where
+    T: Serialize,
+{
+    let json_str = serde_json::to_string_pretty(obj)?;
+    let path_str = match path.to_str() {
+        Some(s) => s,
+        None => "unknown path",
+    };
+    fs::write(path, json_str).expect(&format!("Failed to write file {}", path_str));
+    Ok(())
+}
+
+fn read<T>(path: &Path) -> Result<T, Box<dyn Error>>
+where
+    T: for<'a> Deserialize<'a>,
+{
+    let json_str = fs::read_to_string(path)?;
+    let result = serde_json::from_str::<T>(&json_str)?;
+    Ok(result)
+}

@@ -133,6 +133,11 @@ pub async fn export_twitter_likes_for_username(
             like_response.index = Some(count);
         }
 
+        if let Some(mut meta) = like_response.meta {
+            meta.user_id = Some(user.id.clone());
+            meta.username = Some(user.name.clone());
+        }
+
         // Collect any of the users that we haven't cached previously
         for data in like_response.data.iter() {
             // Gather all of the user_ids for the liked tweets to batch download
