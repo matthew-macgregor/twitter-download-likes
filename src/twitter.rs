@@ -4,7 +4,7 @@ use crate::{
 };
 use reqwest::header::{AUTHORIZATION, USER_AGENT};
 use serde::de;
-use std::{error::Error};
+use std::{error::Error, path::Path};
 
 pub async fn send_request<T>(bearer_token: &str, client: &reqwest::Client, url: &str) -> T
 where
@@ -100,8 +100,13 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     ))
 }
 
-pub fn compile_twitter_exports() -> Result<(), Box<dyn Error>> {
-    cache::load_all_liked_tweets()?;
+pub fn compile_twitter_exports(username: &str) -> Result<(), Box<dyn Error>> {
+    let liked_tweets = cache::load_all_liked_tweets_from_cache(username)?;
+
+    cache::write_cache(
+        &liked_tweets,
+        Path::new(&format!("liked_tweets-{username}.json"))).unwrap();
+
     Ok(())
 }
 

@@ -1,3 +1,4 @@
 /target
 .env
 .cache
+liked_tweets-*.json

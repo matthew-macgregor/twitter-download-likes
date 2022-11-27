@@ -8,7 +8,8 @@ const CACHE_DIRNAME: &str = ".cache";
 #[derive(Debug)]
 pub enum CacheLoadError {
     InvalidDefaultPath(String),
-    File
+    File,
+    NoTweets(String),
 }
 
 impl Error for CacheLoadError {}
@@ -38,28 +39,40 @@ pub fn try_load_user_lookup() -> UserIdLookup {
     }
 }
 
-pub fn load_all_liked_tweets() -> Result<LikedTweets, Box<dyn Error>> {
+pub fn load_all_liked_tweets_from_cache(username: &str) -> Result<LikedTweets, Box<dyn Error>> {
     // From the cache directory, find all cached JSON files with liked tweets.
     let cache_directory = env::current_dir()?.join(CACHE_DIRNAME); // TODO
-    let liked_tweets = LikedTweets {
-        user_id: None,
-        username: None,
-        tweets: Vec::new(),
-    };
-
     let paths = fs::read_dir(cache_directory)?;
+    let mut liked_tweets = LikedTweets::new();
 
     for path in paths {
         let path = path.unwrap().path();
         if let Some(filen) = path.file_name() {
-            if filen.to_str().unwrap().starts_with("likes-") {
+            if filen.to_str().unwrap().starts_with(
+                &format!("likes-{username}-")
+            ) {
                 println!("Name: {}", path.display());
                 let twit_like_resp = TwitLikeResponse::load(&path)?;
-                // println!("Twitter Like Response from cache: {:?}", twit_like_resp);
+                if let None = liked_tweets.user {
+                    liked_tweets.user = twit_like_resp.user;
+                }
+                for datum in twit_like_resp.data {
+                    liked_tweets.tweets.push(datum);
+                }
             }
         }
     }
 
+    if liked_tweets.tweets.is_empty() {
+        return Err(Box::new(CacheLoadError::NoTweets(
+            format!(
+                "No tweets were found for user '{}'. Did you mean to run `export` first?",
+                username
+            ),
+        )));
+    }
+
+    liked_tweets.sort_by_date();
     Ok(liked_tweets)
 }
 

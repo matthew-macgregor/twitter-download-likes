@@ -115,6 +115,15 @@ pub struct TwitLikeDatum {
     pub created_at: String, // date (ISO 8601)
 }
 
+impl TwitLikeDatum {
+    pub fn created_at_datetime(&self) -> NaiveDate {
+        let created_at = &self.created_at; // TODO: unwrap
+        DateTime::parse_from_rfc3339(&created_at)
+            .unwrap()
+            .date_naive()
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeEntities {
     pub urls: Option<Vec<TwitLikeUrl>>,
@@ -178,10 +187,31 @@ impl FsLoadable<UserIdLookup> for UserIdLookup {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct LikedTweets {
-    pub username: Option<String>,
-    pub user_id: Option<String>,
+    pub user: Option<TwitUserDatum>,
     pub tweets: Vec<TwitLikeDatum>,
 }
+
+impl Default for LikedTweets {
+    fn default() -> LikedTweets {
+        LikedTweets {
+            user: None,
+            tweets: Vec::new()
+        }
+    }
+}
+
+impl LikedTweets {
+    pub fn new() -> LikedTweets {
+        LikedTweets { ..Default::default() }
+    }
+
+    pub fn sort_by_date(&mut self) -> () {
+        self.tweets.sort_by(|tw1, tw2|
+            tw2.created_at_datetime().partial_cmp(&tw1.created_at_datetime()).unwrap()
+        );
+    }
+}
+
 
 impl FsCacheable<LikedTweets> for LikedTweets {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {

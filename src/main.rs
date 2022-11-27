@@ -30,6 +30,9 @@ enum Commands {
     },
 
     Compile {
+        /// Twitter username to export
+        #[arg(short, long)]
+        username: String,
     }
 }
 
@@ -57,8 +60,11 @@ async fn main() {
                 }
             todo!("Do something with the output format: {:?}", format);
         }
-        Some(Commands::Compile { }) => {
-            tw::compile_twitter_exports();
+        Some(Commands::Compile { username }) => {
+            match tw::compile_twitter_exports(username) {
+                Ok(_) => println!("Completed compilation successfully"),
+                Err(err) => println!("{:?}", err),
+            };
         }
         None => {}
     }
