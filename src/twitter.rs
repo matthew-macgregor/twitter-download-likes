@@ -1,10 +1,10 @@
 use crate::{
     cache,
-    json_types::{FsCacheable, TwitLikeResponse, TwitUserResponse},
+    json_types::{TwitLikeResponse, TwitUserResponse, UserIdLookup},
 };
 use reqwest::header::{AUTHORIZATION, USER_AGENT};
 use serde::de;
-use std::error::Error;
+use std::{error::Error};
 
 pub async fn send_request<T>(bearer_token: &str, client: &reqwest::Client, url: &str) -> T
 where
@@ -100,6 +100,11 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     ))
 }
 
+pub fn compile_twitter_exports() -> Result<(), Box<dyn Error>> {
+    cache::load_all_liked_tweets()?;
+    Ok(())
+}
+
 pub async fn export_twitter_likes_for_username(
     username: &str,
     token: &str,
@@ -116,7 +121,7 @@ pub async fn export_twitter_likes_for_username(
     let user_response = send_request::<TwitUserResponse>(&token, &client, &url_users_by).await;
 
     let user = &user_response.data[0];
-    let mut user_id_lkup = cache::load_user_lookup();
+    let mut user_id_lkup = cache::try_load_user_lookup();
     let mut next_token: Option<String> = None;
     let mut count: u64 = 0;
 
@@ -128,12 +133,14 @@ pub async fn export_twitter_likes_for_username(
         let mut like_response =
             send_request::<TwitLikeResponse>(&token, &client, &url_users_liked).await;
 
+        like_response.user = Some(user.clone());
+
         if let Some(tkn) = next_token {
             like_response.id = Some(tkn);
             like_response.index = Some(count);
         }
 
-        if let Some(mut meta) = like_response.meta {
+        if let Some(mut meta) = like_response.meta.clone() {
             meta.user_id = Some(user.id.clone());
             meta.username = Some(user.name.clone());
         }
@@ -168,18 +175,23 @@ pub async fn export_twitter_likes_for_username(
                         user_id_lkup.insert(user.id.clone(), Some(user.clone()));
                     }
 
-                    if let Err(err) = cache::write_cache(&user_id_lkup) {
-                        println!("Error writing cache: {err}");
-                    }
+                    cache::write_cache(
+                        &user_id_lkup, 
+                        &UserIdLookup::fs_full_path().unwrap()
+                    )?;
                 }
             };
         }
 
-        if like_response.cache_exists() {
-            println!("Cache exists for this batch of tweets, skipping...");
-        } else {
-            if let Err(error) = cache::write_cache(&like_response) {
-                panic!("{}", error);
+        if let Some(fs_path) = like_response.fs_full_path() {
+            println!("{:?}", fs_path);
+            if fs_path.exists() {
+                println!("Cache exists for this batch of tweets, skipping...");
+            } else {
+                cache::write_cache(
+                    &like_response,
+                    &fs_path,
+                )?;
             }
         }
 

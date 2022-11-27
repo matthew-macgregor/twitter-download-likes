@@ -1,11 +1,11 @@
 use chrono::{DateTime, NaiveDate};
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::cache::get_cacheable_file_path;
+use crate::cache::{get_cache_file_path, get_cache_directory_path};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitUserResponse {
@@ -26,6 +26,7 @@ pub struct TwitLikeResponse {
     // TODO: separate object and JSON repr
     pub id: Option<String>,
     pub index: Option<u64>,
+    pub user: Option<TwitUserDatum>,
     pub data: Vec<TwitLikeDatum>,
     pub meta: Option<TwitLikeMeta>,
 }
@@ -60,11 +61,31 @@ impl TwitLikeResponse {
         let threshold_date = NaiveDate::parse_from_str(not_before_date, "%Y-%m-%d").unwrap();
         return oldest_in_list.lt(&threshold_date);
     }
+
+    pub fn fs_full_path(&self) -> Option<PathBuf> {
+        let directory = match get_cache_directory_path() {
+            Ok(d) => d,
+            Err(_) => return None,
+        };
+        let username = match &self.user {
+            Some(user) => user.username.clone(),
+            None => panic!("User should never be unset in fs_full_path!"),
+        };
+        if let Some(id) = &self.id {
+            if let Some(index) = self.index {
+                return Some(
+                    directory.join(format!("likes-{username}-{index}-{id}.json"))
+                )
+            };
+        }
+
+        Some(directory.join(format!("likes-{username}-0-head.json")))
+    }
 }
 
-impl FsCacheable<&Self> for TwitLikeResponse {
+impl FsCacheable<Self> for TwitLikeResponse {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        write::<&Self>(path, &self)?;
+        write::<Self>(path, &self)?;
         Ok(self)
     }
 }
@@ -76,7 +97,7 @@ impl FsLoadable<TwitLikeResponse> for TwitLikeResponse {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TwitLikeMeta {
     pub result_count: u32,
     pub next_token: Option<String>,
@@ -111,14 +132,12 @@ type UsersByIdHashMap = HashMap<String, Option<TwitUserDatum>>;
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
     pub users_by_id: UsersByIdHashMap,
-    pub filename: String,
 }
 
 impl Default for UserIdLookup {
     fn default() -> UserIdLookup {
         UserIdLookup {
             users_by_id: HashMap::new(),
-            filename: "user_id_lookup.json".to_string(),
         }
     }
 }
@@ -139,51 +158,22 @@ impl UserIdLookup {
         self
     }
 
-    pub fn fs_full_path(&self) -> Option<PathBuf> {
-        match get_cacheable_file_path(&self.filename) {
-            Ok(fs_path) => Some(fs_path.file_path),
-            Err(_) => None,
-        }
+    pub fn fs_full_path() -> std::io::Result<PathBuf> {
+        Ok(get_cache_file_path("user_id_lookup.json")?)
     }
 }
 
-impl FsCacheable<UsersByIdHashMap> for UserIdLookup {
+impl FsCacheable<UserIdLookup> for UserIdLookup {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        write::<UsersByIdHashMap>(path, &self.users_by_id)?;
+        write::<Self>(path, &self)?;
         Ok(self)
     }
 }
 
 impl FsLoadable<UserIdLookup> for UserIdLookup {
     fn load(path: &Path) -> Result<UserIdLookup, Box<dyn Error>> {
-        let mut user_id_lookup = UserIdLookup {
-            ..Default::default()
-        };
-        user_id_lookup.users_by_id = read::<UsersByIdHashMap>(path)?;
-        Ok(user_id_lookup)
+        Ok(read::<UserIdLookup>(path)?)
     }
-
-    // fn cache_filename(&self) -> String {
-    //     "user_id_lookup.json".to_string()
-    // }
-
-    // fn cache_fullpath(&self) -> Option<PathBuf>
-    // where
-    //     Self: Sized,
-    // {
-    //     match get_cacheable_file_path(self) {
-    //         Ok(fs_path) => Some(fs_path.file_path),
-    //         Err(_) => None,
-    //     }
-    // }
-
-    // fn cache_exists(&self) -> bool
-    // where
-    //     Self: Sized,
-    // {
-    //     let Some(fullpath) = self.cache_fullpath() else { return false };
-    //     Path::exists(&fullpath)
-    // }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -195,7 +185,7 @@ pub struct LikedTweets {
 
 impl FsCacheable<LikedTweets> for LikedTweets {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
-        write::<Self>(path, &self)?;
+        write::<LikedTweets>(path, &self)?;
         Ok(self)
     }
 }
@@ -208,23 +198,6 @@ impl FsLoadable<LikedTweets> for LikedTweets {
 
 pub trait FsCacheable<T> {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>>;
-    // fn cache_filename(&self) -> String;
-    // fn cache_fullpath(&self) -> Option<PathBuf>
-    // where
-    //     Self: Sized,
-    // {
-    //     match get_cacheable_file_path(self) {
-    //         Ok(fs_path) => Some(fs_path.file_path),
-    //         Err(_) => None,
-    //     }
-    // }
-    // fn cache_exists(&self) -> bool
-    // where
-    //     Self: Sized,
-    // {
-    //     let Some(fullpath) = self.cache_fullpath() else { return false };
-    //     Path::exists(&fullpath)
-    // }
 }
 
 pub trait FsLoadable<T> {

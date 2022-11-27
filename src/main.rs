@@ -28,6 +28,9 @@ enum Commands {
         #[arg(long, value_enum, default_value_t = OutputFormat::JSON)]
         format: OutputFormat,
     },
+
+    Compile {
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -47,10 +50,15 @@ async fn main() {
             not_before_date,
             format,
         }) => {
-            tw::export_twitter_likes_for_username(&username, &token, not_before_date)
-                .await
-                .expect("Failed to export likes");
+            match tw::export_twitter_likes_for_username(&username, &token, not_before_date)
+                .await {
+                    Ok(_) => println!("Completed with success"),
+                    Err(err) => println!("{:?}", err),
+                }
             todo!("Do something with the output format: {:?}", format);
+        }
+        Some(Commands::Compile { }) => {
+            tw::compile_twitter_exports();
         }
         None => {}
     }
