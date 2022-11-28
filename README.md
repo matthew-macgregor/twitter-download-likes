@@ -16,3 +16,9 @@ These are the project goals:
 
 - Starter template was adapted from: https://github.com/codespaces-examples/rust and updated to newer versions of Ubuntu and dependencies.
 
+### To Do
+
+- [] Better error handling
+    - Read some best practices / patterns
+- [] Pass in optional pagination token
+- [] Handle end case -- empty data[]?

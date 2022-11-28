@@ -20,6 +20,11 @@ where
         .await
         .unwrap();
 
+    // TODO: Error Handling
+    // thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: 
+    // reqwest::Error { kind: Decode, source: Error("missing field `data`", 
+    // line: 1, column: 92) }', src/twitter.rs:24:59
+
     let twit_data: T = match resp.status() {
         reqwest::StatusCode::OK => resp.json::<T>().await.unwrap(),
         _ => panic!("Bad response: {:?}", resp.text().await.unwrap()),
@@ -112,12 +117,24 @@ pub fn compile_twitter_exports_for_username(username: &str) -> Result<(), Box<dy
     Ok(())
 }
 
+pub struct ExportTwitterLikesParams {
+    pub username: String,
+    pub token: String,
+    pub next_token: Option<String>,
+    pub not_before_date: NaiveDate,
+}
+
 pub async fn export_twitter_likes_for_username(
-    username: &str,
-    token: &str,
-    not_before_date: NaiveDate,
+    // username: &str,
+    // token: &str,
+    // not_before_date: NaiveDate,
+    params: ExportTwitterLikesParams,
 ) -> Result<(), Box<dyn Error>> {
     let client = reqwest::Client::new();
+    let username = &params.username;
+    let token = params.token;
+    let next_token = params.next_token;
+    let not_before_date = params.not_before_date;
 
     // Look up the twitter user id by user name / handle
     let url_users_by = match create_url_users_by_username(&[username]) {
@@ -129,7 +146,7 @@ pub async fn export_twitter_likes_for_username(
 
     let user = &user_response.data[0];
     let mut user_id_lkup = cache::try_load_user_lookup();
-    let mut next_token: Option<String> = None;
+    let mut next_token: Option<String> = next_token;
     let mut count: u64 = 0;
 
     loop {
