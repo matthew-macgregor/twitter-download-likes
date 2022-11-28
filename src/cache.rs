@@ -39,11 +39,17 @@ pub fn try_load_user_lookup() -> UserIdLookup {
     }
 }
 
+/// Loads tweets previously cached in the .cache directory into a collection/
+/// 
+/// # Arguments
+///
+/// * `username` - A string slice representing the twitter username (not user id).
 pub fn load_all_liked_tweets_from_cache(username: &str) -> Result<LikedTweets, Box<dyn Error>> {
     // From the cache directory, find all cached JSON files with liked tweets.
     let cache_directory = env::current_dir()?.join(CACHE_DIRNAME); // TODO
     let paths = fs::read_dir(cache_directory)?;
     let mut liked_tweets = LikedTweets::new();
+    let user_id_lkup = UserIdLookup::load_default()?;
 
     for path in paths {
         let path = path.unwrap().path();
@@ -51,12 +57,17 @@ pub fn load_all_liked_tweets_from_cache(username: &str) -> Result<LikedTweets, B
             if filen.to_str().unwrap().starts_with(
                 &format!("likes-{username}-")
             ) {
-                println!("Name: {}", path.display());
+                println!("Loaded: {}", path.display());
                 let twit_like_resp = TwitLikeResponse::load(&path)?;
                 if let None = liked_tweets.user {
                     liked_tweets.user = twit_like_resp.user;
                 }
-                for datum in twit_like_resp.data {
+                for mut datum in twit_like_resp.data {
+                    let user = match user_id_lkup.users_by_id.get(&datum.author_id) {
+                        Some(user_opt) => user_opt.as_ref().unwrap(),
+                        None => panic!("Expected user data for {}", &datum.author_id),
+                    };
+                    datum.user = Some(user.clone());
                     liked_tweets.tweets.push(datum);
                 }
             }

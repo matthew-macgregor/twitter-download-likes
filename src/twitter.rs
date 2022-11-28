@@ -2,10 +2,12 @@ use crate::{
     cache,
     json_types::{TwitLikeResponse, TwitUserResponse, UserIdLookup},
 };
+use chrono::NaiveDate;
 use reqwest::header::{AUTHORIZATION, USER_AGENT};
 use serde::de;
 use std::{error::Error, path::Path};
 
+/// Submits an HTTP (GET) request to the Twitter API.
 pub async fn send_request<T>(bearer_token: &str, client: &reqwest::Client, url: &str) -> T
 where
     T: de::DeserializeOwned + core::fmt::Debug,
@@ -100,7 +102,7 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     ))
 }
 
-pub fn compile_twitter_exports(username: &str) -> Result<(), Box<dyn Error>> {
+pub fn compile_twitter_exports_for_username(username: &str) -> Result<(), Box<dyn Error>> {
     let liked_tweets = cache::load_all_liked_tweets_from_cache(username)?;
 
     cache::write_cache(
@@ -113,7 +115,7 @@ pub fn compile_twitter_exports(username: &str) -> Result<(), Box<dyn Error>> {
 pub async fn export_twitter_likes_for_username(
     username: &str,
     token: &str,
-    not_before_date: &Option<String>,
+    not_before_date: NaiveDate,
 ) -> Result<(), Box<dyn Error>> {
     let client = reqwest::Client::new();
 
@@ -145,10 +147,10 @@ pub async fn export_twitter_likes_for_username(
             like_response.index = Some(count);
         }
 
-        if let Some(mut meta) = like_response.meta.clone() {
-            meta.user_id = Some(user.id.clone());
-            meta.username = Some(user.name.clone());
-        }
+        // if let Some(mut meta) = like_response.meta.clone() {
+        //     meta.user_id = Some(user.id.clone());
+        //     meta.username = Some(user.name.clone());
+        // }
 
         // Collect any of the users that we haven't cached previously
         for data in like_response.data.iter() {
@@ -207,17 +209,20 @@ pub async fn export_twitter_likes_for_username(
             break;
         }
 
-        if let Some(ref not_before_date) = not_before_date {
-            println!("Not before: {not_before_date}");
-            if like_response.has_tweets_older_than(&not_before_date) {
-                println!("Reached the end date: {not_before_date}");
-                break;
-            } else {
-                println!("Not before date not reached, continuing");
-            }
+        println!("Not before: {not_before_date}");
+        if like_response.has_tweets_older_than(&not_before_date) {
+            println!("Reached the end date: {not_before_date}");
+            break;
+        } else {
+            println!("Not before date not reached, continuing");
         }
-
+    
         count += 1;
+
+        // Pretty sure that the rate limit on likes requests is 75 / 15 minutes.
+        println!("Waiting to avoid rate limits...");
+        let twelve_seconds = std::time::Duration::from_secs(12);
+        std::thread::sleep(twelve_seconds);
     }
 
     Ok(())

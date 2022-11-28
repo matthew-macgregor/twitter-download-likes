@@ -7,11 +7,14 @@ use std::path::{Path, PathBuf};
 
 use crate::cache::{get_cache_file_path, get_cache_directory_path};
 
+/// Twitter Users v2 API returns an array of user data. TwitUserResponse
+/// represents the JSON response.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitUserResponse {
     pub data: Vec<TwitUserDatum>,
 }
 
+/// Twitter Users v2 API representation of a User.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TwitUserDatum {
     pub created_at: Option<String>,
@@ -21,17 +24,25 @@ pub struct TwitUserDatum {
     pub url: Option<String>,
 }
 
+/// Twitter Likes v2 API response, with optional additional information.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeResponse {
     // TODO: separate object and JSON repr
+    /// Optional string used to store the next pagination token that this
+    /// response represents.
     pub id: Option<String>,
+    /// 0 - n page of results.
     pub index: Option<u64>,
+    /// User data for the user who liked this list of tweets.
     pub user: Option<TwitUserDatum>,
+    /// Tweet data returned from the API.
     pub data: Vec<TwitLikeDatum>,
+    /// Metadata for this list of tweets.
     pub meta: Option<TwitLikeMeta>,
 }
 
 impl TwitLikeResponse {
+    /// `true` if the Twitter API has another page of results.
     pub fn has_next_token(&self) -> bool {
         match &self.meta {
             None => false,
@@ -39,6 +50,7 @@ impl TwitLikeResponse {
         }
     }
 
+    /// The pagination token needed to retrieve the next page of results.
     pub fn next_token(&self) -> Option<String> {
         if let Some(meta) = &self.meta {
             if let Some(next_token) = &meta.next_token {
@@ -48,7 +60,9 @@ impl TwitLikeResponse {
         None
     }
 
-    pub fn has_tweets_older_than(&self, not_before_date: &str) -> bool {
+    /// Returns `true` if this list contains any tweets which are older than
+    /// the date `not_before_date`.
+    pub fn has_tweets_older_than(&self, not_before_date: &NaiveDate) -> bool {
         if self.data.len() == 0 {
             return false;
         }
@@ -58,10 +72,12 @@ impl TwitLikeResponse {
         let oldest_in_list = DateTime::parse_from_rfc3339(&created_at)
             .unwrap()
             .date_naive();
-        let threshold_date = NaiveDate::parse_from_str(not_before_date, "%Y-%m-%d").unwrap();
-        return oldest_in_list.lt(&threshold_date);
+        return oldest_in_list.lt(not_before_date);
     }
 
+    // Returns an optional PathBuf to the filesystem path where this response
+    // would be cached, or None if there's an error getting the current working
+    // directory (which should be unusual/unexpected).
     pub fn fs_full_path(&self) -> Option<PathBuf> {
         let directory = match get_cache_directory_path() {
             Ok(d) => d,
@@ -97,13 +113,14 @@ impl FsLoadable<TwitLikeResponse> for TwitLikeResponse {
     }
 }
 
+/// Metadata related to the current page of Tweet results.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TwitLikeMeta {
     pub result_count: u32,
     pub next_token: Option<String>,
     pub previous_token: Option<String>,
-    pub user_id: Option<String>,
-    pub username: Option<String>,
+    // pub user_id: Option<String>,
+    // pub username: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -113,6 +130,7 @@ pub struct TwitLikeDatum {
     pub text: String,
     pub entities: Option<TwitLikeEntities>,
     pub created_at: String, // date (ISO 8601)
+    pub user: Option<TwitUserDatum>,
 }
 
 impl TwitLikeDatum {
@@ -170,6 +188,12 @@ impl UserIdLookup {
     pub fn fs_full_path() -> std::io::Result<PathBuf> {
         Ok(get_cache_file_path("user_id_lookup.json")?)
     }
+
+    pub fn load_default() -> Result<UserIdLookup, Box<dyn Error>> {
+        Ok(
+            Self::load(&Self::fs_full_path()?)?
+        )
+    }
 }
 
 impl FsCacheable<UserIdLookup> for UserIdLookup {
@@ -179,6 +203,7 @@ impl FsCacheable<UserIdLookup> for UserIdLookup {
     }
 }
 
+// TODO: Not sure if this makes sense or not
 impl FsLoadable<UserIdLookup> for UserIdLookup {
     fn load(path: &Path) -> Result<UserIdLookup, Box<dyn Error>> {
         Ok(read::<UserIdLookup>(path)?)
