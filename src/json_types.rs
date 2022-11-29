@@ -33,10 +33,11 @@ pub struct TwitLikeResponse {
     pub id: Option<String>,
     /// 0 - n page of results.
     pub index: Option<u64>,
-    /// User data for the user who liked this list of tweets.
+    /// User data for the user who liked this list of tweets. This will not
+    /// be present if there is no data (as opposed to an empty []).
     pub user: Option<TwitUserDatum>,
     /// Tweet data returned from the API.
-    pub data: Vec<TwitLikeDatum>,
+    pub data: Option<Vec<TwitLikeDatum>>,
     /// Metadata for this list of tweets.
     pub meta: Option<TwitLikeMeta>,
 }
@@ -62,16 +63,26 @@ impl TwitLikeResponse {
 
     /// Returns `true` if this list contains any tweets which are older than
     /// the date `not_before_date`.
-    pub fn has_tweets_older_than(&self, not_before_date: &NaiveDate) -> bool {
-        if self.data.len() == 0 {
+    pub fn has_tweets_older_than(&mut self, not_before_date: &NaiveDate) -> bool {
+        let data = match &self.data {
+            Some(data) => data,
+            None => { 
+                self.data = Some(vec![]);
+                return false;
+            },
+        };
+
+        if data.len() == 0 {
             return false;
         }
+
         // If the oldest element in the list (the last one) is older than the threshold date
-        let created_at = &self.data.last().unwrap().created_at; // TODO: unwrap
+        let created_at = &data.last().unwrap().created_at; // TODO: unwrap
         println!("Oldest tweet in batch: {created_at}");
         let oldest_in_list = DateTime::parse_from_rfc3339(&created_at)
             .unwrap()
             .date_naive();
+
         return oldest_in_list.lt(not_before_date);
     }
 
@@ -119,8 +130,6 @@ pub struct TwitLikeMeta {
     pub result_count: u32,
     pub next_token: Option<String>,
     pub previous_token: Option<String>,
-    // pub user_id: Option<String>,
-    // pub username: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

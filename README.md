@@ -20,5 +20,6 @@ These are the project goals:
 
 - [] Better error handling
     - Read some best practices / patterns
-- [] Pass in optional pagination token
-- [] Handle end case -- empty data[]?
+- [x] Pass in optional pagination token
+- [x] Handle end case -- empty data[]?
+- [] Markdown output format

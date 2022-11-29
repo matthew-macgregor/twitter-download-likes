@@ -164,47 +164,46 @@ pub async fn export_twitter_likes_for_username(
             like_response.index = Some(count);
         }
 
-        // if let Some(mut meta) = like_response.meta.clone() {
-        //     meta.user_id = Some(user.id.clone());
-        //     meta.username = Some(user.name.clone());
-        // }
-
-        // Collect any of the users that we haven't cached previously
-        for data in like_response.data.iter() {
-            // Gather all of the user_ids for the liked tweets to batch download
-            if !user_id_lkup.has(&data.author_id) {
-                user_id_lkup.insert(data.author_id.clone(), None);
-            }
-        }
-
-        let mut missing_users: Vec<String> = Vec::new();
-        for (key, value) in &user_id_lkup.users_by_id {
-            if let None = value {
-                missing_users.push(key.clone());
-            }
-        }
-
-        if missing_users.len() > 0 {
-            match create_url_users_by_ids(&missing_users) {
-                Err(TwitUrlFormatErrors::ExceedsLimit(msg)) => panic!("{msg}"),
-                Err(TwitUrlFormatErrors::NotAtMinimum(msg)) => {
-                    println!("No users to look up: {msg}");
+        // Handle missing users
+        // TODO: factor this into separate functions
+        if let Some(data) = &like_response.data {
+            // Collect any of the users that we haven't cached previously
+            for data in data.iter() {
+                // Gather all of the user_ids for the liked tweets to batch download
+                if !user_id_lkup.has(&data.author_id) {
+                    user_id_lkup.insert(data.author_id.clone(), None);
                 }
-                Ok(url) => {
-                    // println!("{:?}", url);
-                    let users_response =
-                        send_request::<TwitUserResponse>(&token, &client, &url).await;
+            }
 
-                    for user in users_response.data {
-                        user_id_lkup.insert(user.id.clone(), Some(user.clone()));
+            let mut missing_users: Vec<String> = Vec::new();
+            for (key, value) in &user_id_lkup.users_by_id {
+                if let None = value {
+                    missing_users.push(key.clone());
+                }
+            }
+
+            if missing_users.len() > 0 {
+                match create_url_users_by_ids(&missing_users) {
+                    Err(TwitUrlFormatErrors::ExceedsLimit(msg)) => panic!("{msg}"),
+                    Err(TwitUrlFormatErrors::NotAtMinimum(msg)) => {
+                        println!("No users to look up: {msg}");
                     }
-
-                    cache::write_cache(
-                        &user_id_lkup, 
-                        &UserIdLookup::fs_full_path().unwrap()
-                    )?;
-                }
-            };
+                    Ok(url) => {
+                        // println!("{:?}", url);
+                        let users_response =
+                            send_request::<TwitUserResponse>(&token, &client, &url).await;
+    
+                        for user in users_response.data {
+                            user_id_lkup.insert(user.id.clone(), Some(user.clone()));
+                        }
+    
+                        cache::write_cache(
+                            &user_id_lkup, 
+                            &UserIdLookup::fs_full_path().unwrap()
+                        )?;
+                    }
+                };
+            }
         }
 
         if let Some(fs_path) = like_response.fs_full_path() {

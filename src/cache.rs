@@ -59,16 +59,20 @@ pub fn load_all_liked_tweets_from_cache(username: &str) -> Result<LikedTweets, B
             ) {
                 println!("Loaded: {}", path.display());
                 let twit_like_resp = TwitLikeResponse::load(&path)?;
+                
                 if let None = liked_tweets.user {
                     liked_tweets.user = twit_like_resp.user;
                 }
-                for mut datum in twit_like_resp.data {
-                    let user = match user_id_lkup.users_by_id.get(&datum.author_id) {
-                        Some(user_opt) => user_opt.as_ref().unwrap(),
-                        None => panic!("Expected user data for {}", &datum.author_id),
-                    };
-                    datum.user = Some(user.clone());
-                    liked_tweets.tweets.push(datum);
+
+                if let Some(data) = twit_like_resp.data {
+                    for mut datum in data {
+                        let user = match user_id_lkup.users_by_id.get(&datum.author_id) {
+                            Some(user_opt) => user_opt.as_ref().unwrap(),
+                            None => panic!("Expected user data for {}", &datum.author_id),
+                        };
+                        datum.user = Some(user.clone());
+                        liked_tweets.tweets.push(datum);
+                    }
                 }
             }
         }
