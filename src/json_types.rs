@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
+use chrono::Utc;
 
 use crate::cache::{get_cache_file_path, get_cache_directory_path};
 
@@ -106,7 +107,9 @@ impl TwitLikeResponse {
             };
         }
 
-        Some(directory.join(format!("likes-{username}-0-head.json")))
+        let dt = Utc::now();
+        let timestamp: i64 = dt.timestamp();
+        Some(directory.join(format!("likes-{username}-0-{timestamp}.json")))
     }
 }
 

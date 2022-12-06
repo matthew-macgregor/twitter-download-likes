@@ -1,4 +1,4 @@
-# Twitter Favorite Exporter
+# Twitter Favorites Exporter
 
 - **Short Description**: Export your Twitter favorites to JSON
 - **Development Status**: Alpha (WIP)

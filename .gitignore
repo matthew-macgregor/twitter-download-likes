@@ -3,3 +3,4 @@
 .cache
 liked_tweets-*.json
 .DS_Store
+.cargo
