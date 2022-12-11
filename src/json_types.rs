@@ -161,8 +161,17 @@ pub struct TwitLikeEntities {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeUrl {
+    /// {
+    ///     "url": "https://t.co/6Txgbp3VS4",
+    ///     "expanded_url": "https://amzn.to/3hKezti",
+    ///     "display_url": "amzn.to/3hKezti"
+    /// },
+
+    /// Shortened t.co URL
     pub url: String,
+    /// Full url with protocol
     pub expanded_url: String,
+    /// Url without protocol
     pub display_url: String,
 }
 
@@ -170,6 +179,7 @@ type UsersByIdHashMap = HashMap<String, Option<TwitUserDatum>>;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
+    /// Allows easy lookup of users by twitter user id
     pub users_by_id: UsersByIdHashMap,
 }
 
@@ -188,19 +198,25 @@ impl UserIdLookup {
         }
     }
 
+    /// Convenience method for checking if a user exists in the set.
+    /// If false, that user has not yet been loaded from Twitter API
+    /// nor cache.
     pub fn has(&self, key: &str) -> bool {
         self.users_by_id.contains_key(key)
     }
 
+    /// Adds a user to the id => user mapping.
     pub fn insert(&mut self, key: String, value: Option<TwitUserDatum>) -> &Self {
         self.users_by_id.insert(key, value);
         self
     }
 
+    /// Returns the full file path to where the user_id_lookup is cached.
     pub fn fs_full_path() -> std::io::Result<PathBuf> {
         Ok(get_cache_file_path("user_id_lookup.json")?)
     }
 
+    /// Loads a UserIdLookup from cache.
     pub fn load_default() -> Result<UserIdLookup, Box<dyn Error>> {
         Ok(
             Self::load(&Self::fs_full_path()?)?
