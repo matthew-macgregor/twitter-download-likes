@@ -1,6 +1,6 @@
 use crate::{
     cache,
-    json_types::{TwitLikeResponse, TwitUserResponse, UserIdLookup},
+    json_types::{TwitLikeResponse, TwitUserResponse, UserIdLookup}, args::OutputFormat, dumps,
 };
 use chrono::NaiveDate;
 use reqwest::header::{AUTHORIZATION, USER_AGENT};
@@ -107,14 +107,18 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     ))
 }
 
-pub fn compile_twitter_exports_for_username(username: &str) -> Result<(), Box<dyn Error>> {
+pub fn compile_twitter_exports_for_username(username: &str, format: &OutputFormat) -> Result<(), Box<dyn Error>> {
     let liked_tweets = cache::load_all_liked_tweets_from_cache(username)?;
-
-    cache::write_cache(
-        &liked_tweets,
-        Path::new(&format!("liked_tweets-{username}.json"))).unwrap();
-
-    Ok(())
+    match format {
+        OutputFormat::JSON => dumps::to_json(
+            &Path::new(&format!("liked_tweets-{username}.json")),
+            &liked_tweets
+        ),
+        OutputFormat::Markdown => dumps::to_markdown(
+            &Path::new(&format!("liked_tweets-{username}.md")), 
+            &liked_tweets
+        ),
+    }
 }
 
 pub struct ExportTwitterLikesParams {

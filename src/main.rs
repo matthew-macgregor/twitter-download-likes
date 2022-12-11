@@ -7,6 +7,8 @@ mod cache;
 mod json_types;
 /// Functions to interact with the Twitter API.
 mod twitter;
+/// Functions to output compiled favorites.
+mod dumps;
 
 use args::Commands;
 use chrono::NaiveDate;
@@ -30,7 +32,6 @@ async fn main() {
         Some(Commands::Export {
             username,
             not_before_date,
-            format,
             next_token,
         }) => {
             // Either parse a date from the option, or get a date in prehistory.
@@ -48,12 +49,11 @@ async fn main() {
             })
             .await {
                 Ok(_) => println!("Completed with success"),
-                Err(err) => println!("{:?}", err),
+                Err(err) => panic!("{:?}", err),
             }
-            todo!("Do something with the output format: {:?}", format);
         }
-        Some(Commands::Compile { username }) => {
-            match tw::compile_twitter_exports_for_username(username) {
+        Some(Commands::Compile { username, format, }) => {
+            match tw::compile_twitter_exports_for_username(username, format) {
                 Ok(_) => println!("Completed compilation successfully"),
                 Err(err) => println!("{:?}", err),
             };

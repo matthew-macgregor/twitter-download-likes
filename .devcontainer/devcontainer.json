@@ -8,6 +8,9 @@
 		"vadimcn.vscode-lldb"
 	],
 	"dockerFile": "Dockerfile",
+	// "mounts": [
+	// 	"source=${localWorkspaceFolder}/.cargo,target=/root/.cargo,type=bind,consistency=cached"
+	// ],
 	"settings": {
 		"editor.formatOnSave": true,
 		"files.exclude": {

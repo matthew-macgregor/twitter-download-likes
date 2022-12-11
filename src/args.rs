@@ -19,10 +19,6 @@ pub enum Commands {
         #[arg(short, long)]
         not_before_date: Option<String>,
 
-        /// Output format (defaults to JSON)
-        #[arg(long, value_enum, default_value_t = OutputFormat::JSON)]
-        format: OutputFormat,
-
         /// Pagination token for next page of results
         #[arg(long)]
         next_token: Option<String>,
@@ -32,6 +28,10 @@ pub enum Commands {
         /// Twitter username to export
         #[arg(short, long)]
         username: String,
+
+        /// Output format (defaults to JSON)
+        #[arg(long, value_enum, default_value_t = OutputFormat::JSON)]
+        format: OutputFormat,
     }
 }
 
@@ -39,6 +39,8 @@ pub enum Commands {
 pub enum OutputFormat {
     /// Outputs to JSON format
     JSON,
+    /// Outputs to Markdown format
+    Markdown,
 }
 
 pub fn parse() -> Args {
