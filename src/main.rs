@@ -3,19 +3,16 @@
 mod args;
 /// Functions for writing/loading JSON data to disk.
 mod cache;
-/// Types for (de)serialization to/from JSON.
-mod json_types;
-/// Functions to interact with the Twitter API.
-mod twitter;
 /// Functions to output compiled favorites.
 mod dumps;
+/// Functions and traits to support serialization and deserialization.
+mod serialization;
+mod twitter;
 
 use args::Commands;
 use chrono::NaiveDate;
 use std::env;
-use twitter as tw;
-
-use crate::twitter::ExportTwitterLikesParams;
+use crate::twitter::twitter as tw;
 
 ///
 /// ```
@@ -41,7 +38,7 @@ async fn main() {
                 NaiveDate::MIN
             };
 
-            match tw::export_twitter_likes_for_username(ExportTwitterLikesParams {
+            match tw::export_twitter_likes_for_username(tw::ExportTwitterLikesParams {
                 username: username.clone(),
                 token: token,
                 next_token: next_token.clone(),

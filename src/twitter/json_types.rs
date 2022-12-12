@@ -2,10 +2,11 @@ use chrono::{DateTime, NaiveDate};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs;
 use std::path::{Path, PathBuf};
 use chrono::Utc;
 
+use crate::twitter::serialization::{read, write};
+use crate::serialization::{FsCacheable, FsLoadable};
 use crate::cache::{get_cache_file_path, get_cache_directory_path};
 
 /// Twitter Users v2 API returns an array of user data. TwitUserResponse
@@ -156,6 +157,7 @@ impl TwitLikeDatum {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeEntities {
+    /// List of structs containing short, expanded and display urls.
     pub urls: Option<Vec<TwitLikeUrl>>,
 }
 
@@ -179,7 +181,7 @@ type UsersByIdHashMap = HashMap<String, Option<TwitUserDatum>>;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
-    /// Allows easy lookup of users by twitter user id
+    /// Allows easy lookup of users by twitter user id.
     pub users_by_id: UsersByIdHashMap,
 }
 
@@ -231,7 +233,6 @@ impl FsCacheable<UserIdLookup> for UserIdLookup {
     }
 }
 
-// TODO: Not sure if this makes sense or not
 impl FsLoadable<UserIdLookup> for UserIdLookup {
     fn load(path: &Path) -> Result<UserIdLookup, Box<dyn Error>> {
         Ok(read::<UserIdLookup>(path)?)
@@ -240,7 +241,9 @@ impl FsLoadable<UserIdLookup> for UserIdLookup {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct LikedTweets {
+    /// Twitter user who "liked" the tweets.
     pub user: Option<TwitUserDatum>,
+    /// List of the tweets that were liked.
     pub tweets: Vec<TwitLikeDatum>,
 }
 
@@ -265,7 +268,6 @@ impl LikedTweets {
     }
 }
 
-
 impl FsCacheable<LikedTweets> for LikedTweets {
     fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>> {
         write::<LikedTweets>(path, &self)?;
@@ -277,34 +279,4 @@ impl FsLoadable<LikedTweets> for LikedTweets {
     fn load(path: &Path) -> Result<LikedTweets, Box<dyn Error>> {
         read::<LikedTweets>(path)
     }
-}
-
-pub trait FsCacheable<T> {
-    fn cache(&self, path: &Path) -> Result<&Self, Box<dyn Error>>;
-}
-
-pub trait FsLoadable<T> {
-    fn load(path: &Path) -> Result<T, Box<dyn Error>>;
-}
-
-fn write<T>(path: &Path, obj: &T) -> Result<(), Box<dyn Error>>
-where
-    T: Serialize,
-{
-    let json_str = serde_json::to_string_pretty(obj)?;
-    let path_str = match path.to_str() {
-        Some(s) => s,
-        None => "unknown path",
-    };
-    fs::write(path, json_str).expect(&format!("Failed to write file {}", path_str));
-    Ok(())
-}
-
-fn read<T>(path: &Path) -> Result<T, Box<dyn Error>>
-where
-    T: for<'a> Deserialize<'a>,
-{
-    let json_str = fs::read_to_string(path)?;
-    let result = serde_json::from_str::<T>(&json_str)?;
-    Ok(result)
 }

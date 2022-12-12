@@ -1,4 +1,5 @@
-use crate::json_types::{FsCacheable, LikedTweets, TwitLikeResponse, UserIdLookup, FsLoadable};
+use crate::twitter::json_types::{LikedTweets, TwitLikeResponse, UserIdLookup};
+use crate::serialization::{FsCacheable, FsLoadable};
 use std::{error::Error, fmt};
 use std::path::{PathBuf, Path};
 use std::{env, fs, io};
@@ -7,8 +8,6 @@ const CACHE_DIRNAME: &str = ".cache";
 
 #[derive(Debug)]
 pub enum CacheLoadError {
-    InvalidDefaultPath(String),
-    File,
     NoTweets(String),
 }
 
@@ -93,10 +92,6 @@ pub fn load_all_liked_tweets_from_cache(username: &str) -> Result<LikedTweets, B
 
 /// Gets the filesystem path for this cacheable type.
 /// Return the cache directory path, followed by the cache file path.
-///
-/// # Panics
-///
-/// Panics if unable to get the current working directory.
 ///
 /// # Errors
 ///

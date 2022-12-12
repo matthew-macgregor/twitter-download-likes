@@ -1,7 +1,9 @@
 use crate::{
     cache,
-    json_types::{TwitLikeResponse, TwitUserResponse, UserIdLookup}, args::OutputFormat, dumps,
+    args::OutputFormat,
+    dumps,
 };
+use crate::twitter::json_types::{TwitLikeResponse, TwitUserResponse, UserIdLookup};
 use chrono::NaiveDate;
 use reqwest::header::{AUTHORIZATION, USER_AGENT};
 use serde::de;

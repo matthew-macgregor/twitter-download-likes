@@ -1,5 +1,5 @@
 use std::{error::Error, path::Path};
-use crate::{json_types::LikedTweets, cache};
+use crate::{twitter::json_types::LikedTweets, cache};
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -14,6 +14,9 @@ macro_rules! write_newlines  {
     };
 }
 
+// TODO: consider moving to_* to impl on the LikedTweets struct.
+/// Exports all LikedTweets into a JSON format and writes it to a single file
+/// on disk.
 pub fn to_json(filename: &Path, liked_tweets: &LikedTweets) -> Result<(), Box<dyn Error>> {
     // We use write_cache here, since cached data is output as JSON
     cache::write_cache(
@@ -22,6 +25,8 @@ pub fn to_json(filename: &Path, liked_tweets: &LikedTweets) -> Result<(), Box<dy
     )
 }
 
+/// Exports all LikedTweets into a markdown format and writes it to a single file
+/// on disk.
 pub fn to_markdown(filename: &Path, liked_tweets: &LikedTweets) -> Result<(), Box<dyn Error>> {
     let display = filename.display();
 
