@@ -32,6 +32,9 @@ pub enum Commands {
         /// Output format (defaults to JSON)
         #[arg(long, value_enum, default_value_t = OutputFormat::JSON)]
         format: OutputFormat,
+
+        #[arg(long)]
+        filename: Option<String>,
     }
 }
 

@@ -38,19 +38,28 @@ async fn main() {
                 NaiveDate::MIN
             };
 
-            match tw::export_twitter_likes_for_username(tw::ExportTwitterLikesParams {
-                username: username.clone(),
-                token: token,
-                next_token: next_token.clone(),
-                not_before_date: not_before_date,
-            })
+            let next_token = next_token.as_deref();
+            match tw::export_twitter_likes_for_username(
+                &username,
+                &token,
+                next_token,
+                not_before_date,
+            )
             .await {
                 Ok(_) => println!("Completed with success"),
                 Err(err) => panic!("{:?}", err),
             }
         }
-        Some(Commands::Compile { username, format, }) => {
-            match tw::compile_twitter_exports_for_username(username, format) {
+        Some(Commands::Compile { 
+            username, 
+            format,
+            filename,
+        }) => {
+            match tw::compile_twitter_exports_for_username(
+                username,
+                format,
+                filename.as_deref(),
+            ) {
                 Ok(_) => println!("Completed compilation successfully"),
                 Err(err) => println!("{:?}", err),
             };

@@ -42,7 +42,7 @@ pub enum TwitUrlFormatErrors {
 }
 
 // https://github.com/twitterdev/Twitter-API-v2-sample-code/blob/main/Likes-Lookup/liked_tweets.py
-pub fn create_url_users_liked_tweets(user_id: &str, next_token: &Option<String>) -> String {
+pub fn create_url_users_liked_tweets(user_id: &str, next_token: Option<&str>) -> String {
     // tweet_fields:
     // attachments, author_id, context_annotations,
     // conversation_id, created_at, entities, geo, id,
@@ -109,38 +109,49 @@ pub fn create_url_users_by_ids(user_ids: &[String]) -> Result<String, TwitUrlFor
     ))
 }
 
-pub fn compile_twitter_exports_for_username(username: &str, format: &OutputFormat) -> Result<(), Box<dyn Error>> {
+/// Compiles a list of liked tweets and writes them to the specified output
+/// format and (optional) filename
+pub fn compile_twitter_exports_for_username(
+    username: &str,
+    format: &OutputFormat,
+    filename: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     let liked_tweets = cache::load_all_liked_tweets_from_cache(username)?;
+    let mut default_filename = format!("liked_tweets-{username}").to_string();
+    let path = match filename {
+        Some(filen) => Path::new(filen),
+        None => match format {
+            OutputFormat::JSON => {
+                default_filename = format!("{default_filename}.json");
+                Path::new(&default_filename)
+            },
+            OutputFormat::Markdown => {
+                default_filename = format!("{default_filename}.md");
+                Path::new(&default_filename)
+            },
+        }
+    };
+
+    // TODO: Combine match with above?
     match format {
         OutputFormat::JSON => dumps::to_json(
-            &Path::new(&format!("liked_tweets-{username}.json")),
+            path,
             &liked_tweets
         ),
         OutputFormat::Markdown => dumps::to_markdown(
-            &Path::new(&format!("liked_tweets-{username}.md")), 
+            path, 
             &liked_tweets
         ),
     }
 }
 
-pub struct ExportTwitterLikesParams {
-    pub username: String,
-    pub token: String,
-    pub next_token: Option<String>,
-    pub not_before_date: NaiveDate,
-}
-
 pub async fn export_twitter_likes_for_username(
-    // username: &str,
-    // token: &str,
-    // not_before_date: NaiveDate,
-    params: ExportTwitterLikesParams,
+    username: &str,
+    token: &str,
+    next_token: Option<&str>,
+    not_before_date: NaiveDate,
 ) -> Result<(), Box<dyn Error>> {
     let client = reqwest::Client::new();
-    let username = &params.username;
-    let token = params.token;
-    let next_token = params.next_token;
-    let not_before_date = params.not_before_date;
 
     // Look up the twitter user id by user name / handle
     let url_users_by = match create_url_users_by_username(&[username]) {
@@ -152,12 +163,12 @@ pub async fn export_twitter_likes_for_username(
 
     let user = &user_response.data[0];
     let mut user_id_lkup = cache::try_load_user_lookup();
-    let mut next_token: Option<String> = next_token;
+    let mut next_token = next_token.map(|t| t.to_string());
     let mut count: u64 = 0;
 
     loop {
         println!("Fetching the next batch of tweets...");
-        let url_users_liked = create_url_users_liked_tweets(&user.id, &next_token);
+        let url_users_liked = create_url_users_liked_tweets(&user.id, next_token.as_ref().map(|t| &**t));
         // TODO: Check here if the cache exists, skip loop if so
 
         let mut like_response =
@@ -166,7 +177,7 @@ pub async fn export_twitter_likes_for_username(
         like_response.user = Some(user.clone());
 
         if let Some(tkn) = next_token {
-            like_response.id = Some(tkn);
+            like_response.id = Some(tkn.to_string());
             like_response.index = Some(count);
         }
 
