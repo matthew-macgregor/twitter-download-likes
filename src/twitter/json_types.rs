@@ -136,6 +136,7 @@ pub struct TwitLikeMeta {
     pub previous_token: Option<String>,
 }
 
+/// Represents a single "liked" Tweet returned from the API.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeDatum {
     pub id: String,
@@ -155,12 +156,17 @@ impl TwitLikeDatum {
     }
 }
 
+/// The Twitter API Returns a list of "entities" as part of the tweet, which
+/// include a list of url objects.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeEntities {
     /// List of structs containing short, expanded and display urls.
     pub urls: Option<Vec<TwitLikeUrl>>,
 }
 
+/// Collection of related urls in shortened and original form, with and without
+/// scheme.
+#[allow(rustdoc::bare_urls)]
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TwitLikeUrl {
     /// {
@@ -177,8 +183,10 @@ pub struct TwitLikeUrl {
     pub display_url: String,
 }
 
+/// Conveniency type: mapping of user ids to the data for that user.
 type UsersByIdHashMap = HashMap<String, Option<TwitUserDatum>>;
 
+/// Wrapper object containing a mapping between user ids and user data.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct UserIdLookup {
     /// Allows easy lookup of users by twitter user id.
@@ -239,6 +247,8 @@ impl FsLoadable<UserIdLookup> for UserIdLookup {
     }
 }
 
+/// Top-level object representing the "liked" tweets for the `user`. This is
+/// the object that is serialized and exported as JSON by the application.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct LikedTweets {
     /// Twitter user who "liked" the tweets.

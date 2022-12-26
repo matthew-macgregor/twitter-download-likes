@@ -1,7 +1,7 @@
 use std::fs;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use std::path::{Path};
+use std::path::Path;
 
 /// Helper function to serialize serde Serializable types to disk.
 pub fn write<T>(path: &Path, obj: &T) -> Result<(), Box<dyn Error>>

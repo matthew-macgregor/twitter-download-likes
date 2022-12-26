@@ -14,7 +14,6 @@ use chrono::NaiveDate;
 use std::env;
 use crate::twitter::twitter as tw;
 
-///
 /// ```
 /// export BEARER_TOKEN=REPLACE_ME
 /// cargo run -- export --username matsuzine
