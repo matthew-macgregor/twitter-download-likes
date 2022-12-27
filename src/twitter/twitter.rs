@@ -292,12 +292,10 @@ pub async fn export_twitter_likes_for_username(
             break;
         }
 
-        println!("Not before: {not_before_date}");
+        // println!("Not before: {not_before_date}");
         if like_response.has_tweets_older_than(&not_before_date) {
             println!("Reached the end date: {not_before_date}");
             break;
-        } else {
-            println!("Not before date not reached, continuing");
         }
 
         count += 1;

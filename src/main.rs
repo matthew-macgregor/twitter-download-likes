@@ -8,11 +8,13 @@ mod dumps;
 /// Functions and traits to support serialization and deserialization.
 mod serialization;
 mod twitter;
+pub mod dotenv;
 
 use args::Commands;
 use chrono::NaiveDate;
 use std::env;
 use crate::twitter::twitter as tw;
+use dotenv::to_env;
 
 /// ```
 /// export BEARER_TOKEN=REPLACE_ME
@@ -21,6 +23,11 @@ use crate::twitter::twitter as tw;
 /// ```
 #[tokio::main]
 async fn main() {
+    // println!("cwd: {:?}", env::current_dir().unwrap().to_str().unwrap());
+    match to_env() {
+        Ok(_) => println!("Loaded .env successfully"),
+        Err(err) => println!("Error loading .env: {}", err)
+    };
     let token = env::var("BEARER_TOKEN").expect("BEARER_TOKEN environment variable is missing.");
     let args = args::parse();
 

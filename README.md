@@ -14,16 +14,24 @@ These are the project goals:
 - Use the project to develop my Rust skills
 - Develop the project entirely in Github Codespaces to give it a try
 
-- Starter template was adapted from: https://github.com/codespaces-examples/rust and updated to newer versions of Ubuntu and dependencies.
+### Output Formats
+
+- JSON (default): all tweets output to a single JSON file.
+- Markdown (experimental): all tweets output to a single Markdown file, but
+this is a work in progress and I may not be inspired to improve it.
 
 ### Build and Run
 
-Set the Twitter API token to `BEARER_TOKEN`.
+Set the Twitter API token to an environment variable `BEARER_TOKEN`. This tool
+supports dotenv, you can create a `.env` file in the current working directory.
+
+The contents of the file:
 
 ```sh
-export BEARER_TOKEN={your_twitter_token}
-cargo run -- help
+BEARER_TOKEN={your_twitter_token}
 ```
+
+### Export and Compile Steps
 
 There are two steps to the process. First, export the tweets to a local cache. To export all likes by a given Twitter username:
 
@@ -39,9 +47,24 @@ Once you have exported the tweets, compile them into JSON or Markdown.
 cargo run -- compile --username {your_username} --format {json,markdown}
 ```
 
+### License
+
+The code under the `src/` tree is Copyright (c) Matthew Macgregor 2022 and 
+provided under the MIT licence, with the exception of `dotenv.rs`, which is MIT 
+licensed and Copyright (c) 2022 Thomas-Zenkel.
+
+Additional dependencies are specified in Cargo.toml. Please refer to their
+licenses individually.
+
+Starter template for use with Codespaces was adapted from 
+https://github.com/codespaces-examples/rust and updated to newer versions of 
+Ubuntu and dependencies. The original template is Copyright (c) 2020 Tierney Cyren
+and provided under the MIT License (MIT).
+
 ### To Do
 
-- [] Better error handling
+- [ ] Write tests
+- [ ] Better error handling
     - Read some best practices / patterns
 - [x] Pass in optional pagination token
 - [x] Handle end case -- empty data[]?
